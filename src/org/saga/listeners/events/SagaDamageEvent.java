@@ -26,65 +26,61 @@ import org.saga.utility.TwoPointFunction;
 
 public class SagaDamageEvent {
 
-	
 	/**
 	 * Damage type.
 	 */
 	public DamageType type;
-	
+
 	/**
 	 * Projectile.
 	 */
 	public final Projectile projectile;
-	
+
 	/**
 	 * Tool material.
 	 */
 	public final Material tool;
-	
-	
+
 	/**
 	 * Attacker creature, null if none.
 	 */
 	public final Creature creatureAttacker;
-	
+
 	/**
 	 * Defender creature, null if none
 	 */
 	public final Creature creatureDefender;
-	
+
 	/**
 	 * Attacker Saga entity, null if none.
 	 */
 	public final SagaLiving sagaAttacker;
-	
+
 	/**
 	 * Defender saga entity, null if none
 	 */
 	public final SagaLiving sagaDefender;
-	
-	
+
 	/**
 	 * Attackers saga chunk, null if none.
 	 */
 	public final SagaChunk attackerChunk;
-	
+
 	/**
 	 * Defenders saga chunk, null if none.
 	 */
 	public final SagaChunk defenderChunk;
 
-	
 	/**
 	 * Minecraft event.
 	 */
 	private final EntityDamageEvent event;
-	
+
 	/**
 	 * Damage modifier.
 	 */
 	private double modifier = 0.0;
-	
+
 	/**
 	 * Damage multiplier.
 	 */
@@ -109,13 +105,12 @@ public class SagaDamageEvent {
 	 * Block multiplier.
 	 */
 	private double blocking = VanillaConfiguration.getBlockingMultiplier();
-	
+
 	/**
-	 * Penalty multiplier.
-	 * Prevents massive damage from weak attacks.
+	 * Penalty multiplier. Prevents massive damage from weak attacks.
 	 */
 	private double penalty = 1.0;
-	
+
 	/**
 	 * Tool sloppiness multiplier.
 	 */
@@ -124,178 +119,191 @@ public class SagaDamageEvent {
 	/**
 	 * PvP override.
 	 */
-	private PriorityQueue<PvPOverride> pvpOverride = new PriorityQueue<SagaDamageEvent.PvPOverride>();
-	
-	
-	
+	private final PriorityQueue<PvPOverride> pvpOverride = new PriorityQueue<SagaDamageEvent.PvPOverride>();
+
 	// Initiate:
 	/**
 	 * Extracts saga entities and chunks.
 	 * 
-	 * @param event event
-	 * @param defender defender entity
+	 * @param event
+	 *            event
+	 * @param defender
+	 *            defender entity
 	 */
 	public SagaDamageEvent(EntityDamageEvent event) {
-		
-		
+
 		Entity attacker = null;
 		LivingEntity defender = null;
 
 		this.event = event;
 		type = DamageType.getDamageType(event);
-		if(event.getEntity() instanceof LivingEntity) defender = (LivingEntity) event.getEntity();
-		
+		if (event.getEntity() instanceof LivingEntity)
+			defender = (LivingEntity) event.getEntity();
+
 		// Damage penalty:
 		// Prevents massive damage from weak attacks.
 		double tresh = AttributeConfiguration.config().getPenaltyValue(type);
-		if(tresh > 0 && event.getDamage() < tresh) penalty = event.getDamage() / tresh;
-		
+		if (tresh > 0 && event.getDamage() < tresh)
+			penalty = event.getDamage() / tresh;
+
 		// Attacked by an entity:
-		if(event instanceof EntityDamageByEntityEvent) attacker = ((EntityDamageByEntityEvent) event).getDamager();
-		
+		if (event instanceof EntityDamageByEntityEvent)
+			attacker = ((EntityDamageByEntityEvent) event).getDamager();
+
 		// Attacked by a projectile:
-		if(attacker instanceof Projectile){
-			
+		if (attacker instanceof Projectile) {
+
 			projectile = (Projectile) attacker;
 			attacker = projectile.getShooter();
-			
-		}else{
-			
-			projectile = null;
-			
-		}
-		
-		// Get attacker saga player:
-		if(attacker instanceof Player){
 
-			sagaAttacker = Saga.plugin().getLoadedPlayer( ((Player) attacker).getName() );
+		} else {
+
+			projectile = null;
+
+		}
+
+		// Get attacker saga player:
+		if (attacker instanceof Player) {
+
+			sagaAttacker = Saga.plugin().getLoadedPlayer(
+					((Player) attacker).getName());
 			creatureAttacker = null;
-			
+
 			// Tool:
 			tool = ((Player) attacker).getItemInHand().getType();
-			
+
 		}
 
 		// Get attacker creature:
-		else if(attacker instanceof Creature){
-			
-			creatureAttacker = (Creature)attacker;
-			sagaAttacker = SagaMobsDependency.findSagaCreature(creatureAttacker);
+		else if (attacker instanceof Creature) {
+
+			creatureAttacker = (Creature) attacker;
+			sagaAttacker = SagaMobsDependency
+					.findSagaCreature(creatureAttacker);
 			tool = Material.AIR;
-			
-		}else{
-			
+
+		} else {
+
 			creatureAttacker = null;
 			sagaAttacker = null;
 			tool = Material.AIR;
-			
+
 		}
-		
+
 		// Get defender saga player:
-		if(defender instanceof Player){
+		if (defender instanceof Player) {
 
 			creatureDefender = null;
-			sagaDefender = Saga.plugin().getLoadedPlayer( ((Player) defender).getName() );
-			
+			sagaDefender = Saga.plugin().getLoadedPlayer(
+					((Player) defender).getName());
+
 		}
-		
+
 		// Get defender creature:
-		else if(defender instanceof Creature){
-			
-			creatureDefender = (Creature)defender;
-			sagaDefender = SagaMobsDependency.findSagaCreature(creatureDefender);
-			
+		else if (defender instanceof Creature) {
+
+			creatureDefender = (Creature) defender;
+			sagaDefender = SagaMobsDependency
+					.findSagaCreature(creatureDefender);
+
 		}
-		
-		else{
-			
+
+		else {
+
 			creatureDefender = null;
 			sagaDefender = null;
-			
+
 		}
-		
+
 		// Get chunks:
-		attackerChunk = (attacker != null) ? BundleManager.manager().getSagaChunk(attacker.getLocation()) : null;
-		defenderChunk = (defender != null) ? BundleManager.manager().getSagaChunk(defender.getLocation()) : null;
-		
-		
+		attackerChunk = (attacker != null) ? BundleManager.manager()
+				.getSagaChunk(attacker.getLocation()) : null;
+		defenderChunk = (defender != null) ? BundleManager.manager()
+				.getSagaChunk(defender.getLocation()) : null;
+
 	}
-	
-	
-	
+
 	// Modify:
 	/**
 	 * Modifies damage.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyDamage(double amount) {
-		modifier+= amount;
+		modifier += amount;
 	}
-	
+
 	/**
 	 * Multiplies damage.
 	 * 
-	 * @param amount amount to multiply by
+	 * @param amount
+	 *            amount to multiply by
 	 */
 	public void multiplyDamage(double amount) {
-		multiplier+= amount;
+		multiplier += amount;
 	}
-	
+
 	/**
 	 * Divides damage.
 	 * 
-	 * @param amount amount to divide by
+	 * @param amount
+	 *            amount to divide by
 	 */
 	public void divideDamage(double amount) {
-		multiplier/= amount;
+		multiplier /= amount;
 	}
-	
+
 	/**
 	 * Modifies hit chance.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyHitChance(double amount) {
-		hitChance+=amount;
+		hitChance += amount;
 	}
 
 	/**
 	 * Modifies armour penetration.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyArmourPenetration(double amount) {
-		penetration+=amount;
+		penetration += amount;
 	}
 
 	/**
 	 * Modifies enchantment penetration.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyEnchantPenetration(double amount) {
-		disenchant+=amount;
+		disenchant += amount;
 	}
-	
+
 	/**
 	 * Modifies blocking.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyBlocking(double amount) {
-		blocking-= amount;
+		blocking -= amount;
 	}
-	
+
 	/**
 	 * Modifies tool handling.
 	 * 
-	 * @param amount amount to modify
+	 * @param amount
+	 *            amount to modify
 	 */
 	public void modifyToolHandling(double amount) {
-		sloppiness-= amount;
+		sloppiness -= amount;
 	}
-	
+
 	/**
 	 * Gets the projectile.
 	 * 
@@ -305,8 +313,6 @@ public class SagaDamageEvent {
 		return projectile;
 	}
 
-	
-	
 	// Conclude:
 	/**
 	 * Applies the event.
@@ -314,77 +320,92 @@ public class SagaDamageEvent {
 	 */
 	public void apply() {
 
-		
 		// Ignore cancelled:
-		if(isCancelled()) return;
+		if (isCancelled())
+			return;
 
 		// Dodge:
-		if(hitChance <= Saga.RANDOM.nextDouble()) {
+		if (hitChance <= Saga.RANDOM.nextDouble()) {
 			event.setCancelled(true);
 			return;
 		}
-		
+
 		// Modify damage:
 		double damage = calcDamage();
-		event.setDamage(damage);
-		
+		event.setDamage((int) damage);
+
 		// Apply damage to player:
-		if(sagaDefender != null){
-			
+		if (sagaDefender != null) {
+
 			double harm = damage;
-			
+
 			// Armour:
-			double armour = VanillaConfiguration.getArmourMultiplier(event, sagaDefender.getWrapped()) + penetration;
-			if(armour < 0.0) armour = 0.0;
-			if(armour > 1.0) armour = 1.0;
-			harm*= armour;
-		
+			double armour = VanillaConfiguration.getArmourMultiplier(event,
+					sagaDefender.getWrapped()) + penetration;
+			if (armour < 0.0)
+				armour = 0.0;
+			if (armour > 1.0)
+				armour = 1.0;
+			harm *= armour;
+
 			// Enchantments:
-			double ench = VanillaConfiguration.getEPFMultiplier(event, sagaDefender.getWrapped()) + disenchant;
-			if(ench < 0.0) ench = 0.0;
-			if(ench > 1.0) ench = 1.0;
-			harm*= ench;
-			
+			double ench = VanillaConfiguration.getEPFMultiplier(event,
+					sagaDefender.getWrapped()) + disenchant;
+			if (ench < 0.0)
+				ench = 0.0;
+			if (ench > 1.0)
+				ench = 1.0;
+			harm *= ench;
+
 			// Blocking:
-			if(VanillaConfiguration.checkBlocking(event, sagaDefender.getWrapped())) harm*= blocking;
-			
+			if (VanillaConfiguration.checkBlocking(event,
+					sagaDefender.getWrapped()))
+				harm *= blocking;
+
 			// Apply Saga damage:
-			sagaDefender.getWrapped().damage(harm);
-			
+			sagaDefender.getWrapped().damage((int) harm);
+
 			// Take control:
-			event.setDamage(0.0);
-			
+			event.setDamage((int) 0.0);
+
 		}
-		
+
 		// Reduce tool damage:
 		final int undurability;
-		if(sagaAttacker != null) undurability = sagaAttacker.getHandItem().getDurability();
-		else undurability = 0;
-		
+		if (sagaAttacker != null)
+			undurability = sagaAttacker.getHandItem().getDurability();
+		else
+			undurability = 0;
+
 		// Reduce armour durability:
-		if(sagaDefender != null && VanillaConfiguration.checkArmourDamage(event.getCause())) sagaDefender.damageArmour();
-		
+		if (sagaDefender != null
+				&& VanillaConfiguration.checkArmourDamage(event.getCause()))
+			sagaDefender.damageArmour();
+
 		// Schedule for next tick:
-		Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(Saga.plugin(), new Runnable() {
-			@SuppressWarnings("deprecation")
-			@Override
-			public void run() {
-				
-				// Tool damage reduction:
-				if(sagaAttacker instanceof SagaPlayer){
-					Player player = ((SagaPlayer)sagaAttacker).getPlayer();
-					ItemStack item = player.getItemInHand();
-					int damage = item.getDurability() - undurability;
-					damage = TwoPointFunction.randomRound(sloppiness * damage).shortValue();
-					int pundurability = item.getDurability();
-					item.setDurability((short) (undurability + damage));
-					if(item.getDurability() != pundurability) player.updateInventory();
-				}
-				
-			}
-		}, 1);
-		
-		
+		Bukkit.getServer().getScheduler()
+				.scheduleSyncDelayedTask(Saga.plugin(), new Runnable() {
+					@SuppressWarnings("deprecation")
+					@Override
+					public void run() {
+
+						// Tool damage reduction:
+						if (sagaAttacker instanceof SagaPlayer) {
+							Player player = ((SagaPlayer) sagaAttacker)
+									.getPlayer();
+							ItemStack item = player.getItemInHand();
+							int damage = item.getDurability() - undurability;
+							damage = TwoPointFunction.randomRound(
+									sloppiness * damage).shortValue();
+							int pundurability = item.getDurability();
+							item.setDurability((short) (undurability + damage));
+							if (item.getDurability() != pundurability)
+								player.updateInventory();
+						}
+
+					}
+				}, 1);
+
 	}
 
 	/**
@@ -396,9 +417,7 @@ public class SagaDamageEvent {
 		event.setCancelled(true);
 
 	}
-	
-	
-	
+
 	// Event information:
 	/**
 	 * Calculates damage.
@@ -408,19 +427,21 @@ public class SagaDamageEvent {
 	public double calcDamage() {
 
 		return (event.getDamage() + modifier) * multiplier * penalty;
-		
+
 	}
-	
+
 	/**
 	 * Checks if the defender player is blocking.
 	 * 
 	 * @return true if blocking
 	 */
 	public boolean isBlocking() {
-		if(sagaDefender == null) return false;
-		return VanillaConfiguration.checkBlocking(event, sagaDefender.getWrapped());
+		if (sagaDefender == null)
+			return false;
+		return VanillaConfiguration.checkBlocking(event,
+				sagaDefender.getWrapped());
 	}
-	
+
 	/**
 	 * Checks if player attacked a player.
 	 * 
@@ -428,10 +449,11 @@ public class SagaDamageEvent {
 	 */
 	public boolean isPvP() {
 
-		return sagaAttacker instanceof SagaPlayer && sagaDefender instanceof SagaPlayer;
+		return sagaAttacker instanceof SagaPlayer
+				&& sagaDefender instanceof SagaPlayer;
 
 	}
-	
+
 	/**
 	 * Checks if player attacked a creature.
 	 * 
@@ -442,7 +464,7 @@ public class SagaDamageEvent {
 		return sagaAttacker instanceof SagaPlayer && creatureDefender != null;
 
 	}
-	
+
 	/**
 	 * Checks if creature attacked a creature.
 	 * 
@@ -471,12 +493,14 @@ public class SagaDamageEvent {
 	 * @return true if faction versus faction.
 	 */
 	public boolean isFvF() {
-		
-		if(!(sagaAttacker instanceof SagaPlayer) || !(sagaDefender  instanceof SagaPlayer)) return false;
-		return ((SagaPlayer) sagaAttacker).getFaction() != null && ((SagaPlayer) sagaDefender).getFaction() != null;
-		
-	}
 
+		if (!(sagaAttacker instanceof SagaPlayer)
+				|| !(sagaDefender instanceof SagaPlayer))
+			return false;
+		return ((SagaPlayer) sagaAttacker).getFaction() != null
+				&& ((SagaPlayer) sagaDefender).getFaction() != null;
+
+	}
 
 	/**
 	 * Gets the attacker.
@@ -484,7 +508,8 @@ public class SagaDamageEvent {
 	 * @return attacker, null if none
 	 */
 	public LivingEntity getAttacker() {
-		if(sagaAttacker != null) return sagaAttacker.getWrapped();
+		if (sagaAttacker != null)
+			return sagaAttacker.getWrapped();
 		return creatureAttacker;
 	}
 
@@ -494,10 +519,10 @@ public class SagaDamageEvent {
 	 * @return defender, null if none
 	 */
 	public LivingEntity getDefender() {
-		if(sagaDefender != null) return sagaDefender.getWrapped();
+		if (sagaDefender != null)
+			return sagaDefender.getWrapped();
 		return creatureDefender;
 	}
-	
 
 	/**
 	 * Gets attacker faction.
@@ -505,7 +530,8 @@ public class SagaDamageEvent {
 	 * @return attacker faction, null if none
 	 */
 	public Faction getAttackerFaction() {
-		if(sagaAttacker instanceof SagaPlayer) return ((SagaPlayer) sagaAttacker).getFaction();
+		if (sagaAttacker instanceof SagaPlayer)
+			return ((SagaPlayer) sagaAttacker).getFaction();
 		return null;
 	}
 
@@ -515,12 +541,11 @@ public class SagaDamageEvent {
 	 * @return defender faction, null if none
 	 */
 	public Faction getDefenderFaction() {
-		if(sagaDefender instanceof SagaPlayer) return ((SagaPlayer) sagaDefender).getFaction();
+		if (sagaDefender instanceof SagaPlayer)
+			return ((SagaPlayer) sagaDefender).getFaction();
 		return null;
 	}
-	
-	
-	
+
 	/**
 	 * Gets base damage.
 	 * 
@@ -529,7 +554,7 @@ public class SagaDamageEvent {
 	public double getBaseDamage() {
 		return event.getDamage();
 	}
-	
+
 	/**
 	 * Checks if the event is cancelled.
 	 * 
@@ -541,18 +566,18 @@ public class SagaDamageEvent {
 
 	}
 
-	
 	/**
 	 * Adds a pvp override.
 	 * 
-	 * @param override pvp override
+	 * @param override
+	 *            pvp override
 	 */
 	public void addPvpOverride(PvPOverride override) {
 
 		pvpOverride.add(override);
-		
+
 	}
-	
+
 	/**
 	 * Gets the top override.
 	 * 
@@ -560,41 +585,32 @@ public class SagaDamageEvent {
 	 */
 	public PvPOverride getOverride() {
 
-		if(pvpOverride.size() == 0) return PvPOverride.NONE;
-		
+		if (pvpOverride.size() == 0)
+			return PvPOverride.NONE;
+
 		return pvpOverride.peek();
 
 	}
 
-
-	
 	/**
 	 * Pvp overrides.
 	 * 
 	 * @author andf
-	 *
+	 * 
 	 */
-	public enum PvPOverride{
-		
-		
-		ADMIN_ALLOW(true),
-		ADMIN_DENY(false),
-		RESPAWN_DENY(false),
-		SELF_ALLOW(true),
-		ARENA_ALLOW(true),
-		SAME_FACTION_DENY(false),
-		SAFE_AREA_DENY(false),
-		FACTION_ONLY_PVP_DENY(false),
-		ALLY_DENY(false),
-		
+	public enum PvPOverride {
+
+		ADMIN_ALLOW(true), ADMIN_DENY(false), RESPAWN_DENY(false), SELF_ALLOW(
+				true), ARENA_ALLOW(true), SAME_FACTION_DENY(false), SAFE_AREA_DENY(
+				false), FACTION_ONLY_PVP_DENY(false), ALLY_DENY(false),
+
 		NONE(true);
-		
-		
+
 		/**
 		 * If true, then pvp will be allowed.
 		 */
 		private boolean allow;
-		
+
 		/**
 		 * Sets if pvp override enables PvP.
 		 * 
@@ -603,7 +619,7 @@ public class SagaDamageEvent {
 		private PvPOverride(boolean allow) {
 			this.allow = allow;
 		}
-		
+
 		/**
 		 * If true, then pvp will be allowed. Denied if false.
 		 * 
@@ -611,10 +627,8 @@ public class SagaDamageEvent {
 		 */
 		public boolean isAllow() {
 			return allow;
-		}		
-		
-		
+		}
+
 	}
-	
-	
+
 }
